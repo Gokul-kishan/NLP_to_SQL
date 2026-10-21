@@ -1,0 +1,77 @@
+# ==========================================
+# Environments & Virtual Envs
+# ==========================================
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+bin/
+lib/
+include/
+
+# ==========================================
+# Byte-compiled / Python Cache
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+
+# ==========================================
+# Databases & Local Data Exports
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
+*.csv
+*.xlsx
+*.sql
+!schema.sql
+
+# ==========================================
+# IDEs & Code Editors
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+.DS_Store
+
+# ==========================================
+# Testing, Logs & Coverage
+# ==========================================
+*.log
+logs/
+.pytest_cache/
+.coverage
+htmlcov/
+.nox/
+.tox/
+
+# ==========================================
+# Jupyter Notebooks (Optional)
+# ==========================================
+.ipynb_checkpoints
+*-checkpoint.ipynb
+
+# ==========================================
+# Build & Distribution
+# ==========================================
+build/
+dist/
+*.egg-info/
+.eggs/
