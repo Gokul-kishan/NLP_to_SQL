@@ -2,6 +2,7 @@
 # Environments & Virtual Envs
 # ==========================================
 .venv/
+.env/
 venv/
 env/
 ENV/
@@ -75,3 +76,4 @@ build/
 dist/
 *.egg-info/
 .eggs/
+.env
