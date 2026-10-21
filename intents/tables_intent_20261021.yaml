@@ -1,0 +1,303 @@
+version: 2
+semantic_models:
+
+  - name: cities
+    description: "Geographical cities where the quick-commerce platform operates, categorized by tier."
+    primary_table: cities
+    synonyms: ["city", "location", "state", "tier"]
+    entities:
+      - name: city_id
+        type: primary
+        expr: city_id
+    dimensions:
+      - name: city_name
+        type: categorical
+        expr: city_name
+      - name: state
+        type: categorical
+        expr: state
+      - name: tier
+        type: categorical
+        expr: tier
+
+  - name: dark_stores
+    description: "Physical warehouse hubs located within cities for quick fulfillment."
+    primary_table: dark_stores
+    synonyms: ["hub", "store", "warehouse", "dark store"]
+    entities:
+      - name: store_id
+        type: primary
+        expr: store_id
+      - name: city_id
+        type: foreign
+        expr: city_id
+        to: cities.city_id
+    dimensions:
+      - name: store_name
+        type: categorical
+        expr: store_name
+      - name: opening_date
+        type: time
+        expr: opening_date
+    measures:
+      - name: total_capacity
+        expr: capacity
+        agg: sum
+
+  - name: customers
+    description: "Registered buyers on the platform, tracked by acquisition channel and loyalty status."
+    primary_table: customers
+    synonyms: ["buyer", "user", "client", "signup"]
+    entities:
+      - name: customer_id
+        type: primary
+        expr: customer_id
+      - name: city_id
+        type: foreign
+        expr: city_id
+        to: cities.city_id
+    dimensions:
+      - name: signup_date
+        type: time
+        expr: signup_date
+      - name: acquisition_channel
+        type: categorical
+        expr: acquisition_channel
+      - name: loyalty_tier
+        type: categorical
+        expr: loyalty_tier
+    measures:
+      - name: total_customers
+        expr: customer_id
+        agg: count
+
+  - name: categories_and_subcategories
+    description: "Product taxonomy hierarchy breaking items down into major categories and subcategories."
+    primary_table: subcategories
+    synonyms: ["category", "department", "subcategory", "item type"]
+    entities:
+      - name: subcategory_id
+        type: primary
+        expr: subcategory_id
+      - name: category_id
+        type: foreign
+        expr: category_id
+        to: categories.category_id
+    dimensions:
+      - name: subcategory_name
+        type: categorical
+        expr: subcategory_name
+
+  - name: products
+    description: "Catalog of items available for purchase, including pricing and perishable flags."
+    primary_table: products
+    synonyms: ["item", "goods", "product name", "brand"]
+    entities:
+      - name: product_id
+        type: primary
+        expr: product_id
+      - name: subcategory_id
+        type: foreign
+        expr: subcategory_id
+        to: subcategories.subcategory_id
+    dimensions:
+      - name: brand
+        type: categorical
+        expr: brand
+      - name: product_name
+        type: categorical
+        expr: product_name
+      - name: perishable_flag
+        type: categorical
+        expr: perishable_flag
+    measures:
+      - name: average_selling_price
+        expr: selling_price
+        agg: avg
+      - name: average_mrp
+        expr: mrp
+        agg: avg
+
+  - name: inventory_cache
+    description: "Current real-time stock levels and SKU mappings per dark store."
+    primary_table: inventory
+    synonyms: ["stock status", "available inventory", "sku", "reorder level"]
+    entities:
+      - name: inventory_id
+        type: primary
+        expr: inventory_id
+      - name: store_id
+        type: foreign
+        expr: store_id
+        to: dark_stores.store_id
+      - name: product_id
+        type: foreign
+        expr: product_id
+        to: products.product_id
+    dimensions:
+      - name: sku_code
+        type: categorical
+        expr: sku_code
+    measures:
+      - name: current_stock
+        expr: current_stock
+        agg: sum
+      - name: reorder_level
+        expr: reorder_level
+        agg: sum
+
+  - name: inventory_history_ledger
+    description: "Immutable ledger logging every stock movement (IN/OUT) with reasons like sales, restocks, or damage."
+    primary_table: inventory_history
+    synonyms: ["stock movement", "ledger", "audit trail", "restock log"]
+    entities:
+      - name: movement_id
+        type: primary
+        expr: movement_id
+      - name: inventory_id
+        type: foreign
+        expr: inventory_id
+        to: inventory.inventory_id
+    dimensions:
+      - name: action
+        type: categorical
+        expr: action
+        description: "IN for restocks/returns, OUT for sales/damages."
+      - name: reason
+        type: categorical
+        expr: reason
+        description: "SALE, RESTOCK, CUSTOMER_RETURN, DAMAGE_EXPIRY, AUDIT_ADJUSTMENT"
+      - name: created_at
+        type: time
+        expr: created_at
+    measures:
+      - name: units_moved
+        expr: quantity
+        agg: sum
+
+  - name: delivery_partners
+    description: "Riders assigned to dark stores who handle order fulfillment."
+    primary_table: delivery_partners
+    synonyms: ["rider", "driver", "partner rating"]
+    entities:
+      - name: partner_id
+        type: primary
+        expr: partner_id
+      - name: store_id
+        type: foreign
+        expr: store_id
+        to: dark_stores.store_id
+    dimensions:
+      - name: partner_name
+        type: categorical
+        expr: partner_name
+    measures:
+      - name: average_partner_rating
+        expr: rating
+        agg: avg
+
+  - name: orders
+    description: "Transactional records of customer checkouts, statuses, payment types, and delivery fees."
+    primary_table: orders
+    synonyms: ["checkout", "transaction", "order status", "payment mode"]
+    entities:
+      - name: order_id
+        type: primary
+        expr: order_id
+      - name: customer_id
+        type: foreign
+        expr: customer_id
+        to: customers.customer_id
+      - name: store_id
+        type: foreign
+        expr: store_id
+        to: dark_stores.store_id
+    dimensions:
+      - name: status
+        type: categorical
+        expr: status
+        description: "Placed, Packed, Out for Delivery, Delivered, Cancelled"
+      - name: placed_at
+        type: time
+        expr: placed_at
+      - name: delivered_at
+        type: time
+        expr: delivered_at
+      - name: payment_mode
+        type: categorical
+        expr: payment_mode
+    measures:
+      - name: total_delivery_fee
+        expr: delivery_fee
+        agg: sum
+      - name: total_orders
+        expr: order_id
+        agg: count
+
+  - name: order_items
+    description: "Line items attached to specific orders containing quantities, unit prices, and discounts."
+    primary_table: order_items
+    synonyms: ["line item", "basket item", "product quantity in order"]
+    entities:
+      - name: item_id
+        type: primary
+        expr: item_id
+      - name: order_id
+        type: foreign
+        expr: order_id
+        to: orders.order_id
+      - name: product_id
+        type: foreign
+        expr: product_id
+        to: products.product_id
+    measures:
+      - name: total_quantity_ordered
+        expr: quantity
+        agg: sum
+      - name: total_item_revenue
+        expr: "quantity * unit_price - discount"
+        agg: sum
+
+  - name: deliveries_sla
+    description: "Fulfillment performance tracking promised duration vs actual duration to flag SLA breaches."
+    primary_table: deliveries
+    synonyms: ["sla breach", "delivery time", "speed", "promised minutes"]
+    entities:
+      - name: delivery_id
+        type: primary
+        expr: delivery_id
+      - name: order_id
+        type: foreign
+        expr: order_id
+        to: orders.order_id
+      - name: partner_id
+        type: foreign
+        expr: partner_id
+        to: delivery_partners.partner_id
+    measures:
+      - name: average_actual_delivery_time
+        expr: actual_minutes
+        agg: avg
+      - name: total_sla_breaches
+        expr: sla_breached
+        agg: sum
+
+  - name: refunds_and_ratings
+    description: "Customer feedback, star ratings, and refund issuance logs per order."
+    primary_table: refunds_ratings
+    synonyms: ["feedback", "rating", "refund", "complaint"]
+    entities:
+      - name: feedback_id
+        type: primary
+        expr: feedback_id
+      - name: order_id
+        type: foreign
+        expr: order_id
+        to: orders.order_id
+    measures:
+      - name: average_customer_rating
+        expr: rating
+        agg: avg
+      - name: total_refunds_issued
+        expr: refund_issued
+        agg: sum
