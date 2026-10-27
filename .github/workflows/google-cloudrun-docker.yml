@@ -15,43 +15,34 @@ env:
 
 jobs:
   # ==========================================
-  # JOB 1: AUTHENTICATION & TOKEN GENERATION
+  # COMBINED JOB: AUTH, BUILD & IMAGE PUSH
   # ==========================================
-  auth-gcp:
-    name: 🔐 Auth GCP
+  build-and-push:
+    name: 📦 Authenticate, Build & Push
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-    outputs:
-      gcp_token: ${{ steps.auth.outputs.access_token }}
+      id-token: write # Required for keyless WIF authentication
+
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Local authentication means this token is perfectly accessible by Docker below
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
         with:
           token_format: 'access_token'
-          access_token_lifetime: '1200s' 
           workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
           service_account: ${{ env.GCP_WIF_SERVICE_ACCOUNT }}
-
-  # ==========================================
-  # JOB 2: DOCKER AUTH, BUILD & IMAGE PUSH
-  # ==========================================
-  build-and-push:
-    name: 📦 Auth Docker & Build
-    needs: auth-gcp
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
 
       - name: Docker Auth
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGION }}-docker.pkg.dev
           username: oauth2accesstoken
-          password: ${{ needs.auth-gcp.outputs.gcp_token }}
+          password: ${{ steps.auth.outputs.access_token }} # 100% reliable local reference
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -67,11 +58,11 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ==========================================
-  # JOB 3 & 4: DEPLOY, VERIFY HTTP 200 & ROLLBACK
+  # JOB 2: DEPLOY, VERIFY HTTP 200 & ROLLBACK
   # ==========================================
   deploy-and-verify:
     name: 🚀 Deploy & Verify Health
-    needs: [auth-gcp, build-and-push]
+    needs: build-and-push
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -87,12 +78,12 @@ jobs:
           workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
           service_account: ${{ env.GCP_WIF_SERVICE_ACCOUNT }}
 
-      # To support safe rollback, we fetch the active image tag BEFORE deploying the new one
+      # To support safe rollback, fetch the active image tag BEFORE deploying the new one
       - name: Fetch Current Active Image (For Rollback Backup)
         id: backup
         run: |
           gcloud config set project ${{ env.PROJECT_ID }}
-          CURRENT_IMAGE=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format="value(spec.template.spec.containers[0].image)" 2>/dev/null || echo "none")
+          CURRENT_IMAGE=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format="value(spec.template.spec.containers.image)" 2>/dev/null || echo "none")
           echo "previous_image=$CURRENT_IMAGE" >> $GITHUB_OUTPUT
 
       - name: Deploy New Version to Cloud Run
@@ -131,30 +122,42 @@ jobs:
           image: ${{ steps.backup.outputs.previous_image }}
 
   # ==========================================
-  # JOB 5: PROMOTE TO LATEST ON SUCCESS
+  # JOB 3: PROMOTE TO LATEST ON SUCCESS
   # ==========================================
   promote-to-latest:
     name: 🏷️ Push Latest Tag
-    needs: [auth-gcp, deploy-and-verify]
+    needs: [build-and-push, deploy-and-verify]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_WIF_SERVICE_ACCOUNT }}
+
       - name: Docker Auth
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGION }}-docker.pkg.dev
           username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }} # ${{ needs.auth-gcp.outputs.gcp_token }}
+          password: ${{ steps.auth.outputs.access_token }}
 
-      # Pulls the verified image from the registry and adds the 'latest' tag
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Pulls the verified image from the registry and adds the 'latest' tag
       - name: Tag and Push Latest
         run: |
           IMAGE_PATH="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}"
           docker pull $IMAGE_PATH:${{ github.sha }}
           docker tag $IMAGE_PATH:${{ github.sha }} $IMAGE_PATH:latest
           docker push $IMAGE_PATH:latest
+
 
 
 # name: 'Build and Deploy to Cloud Run'
