@@ -10,8 +10,8 @@ env:
   REGION: asia-south1
   GAR_REPOSITORY: fastapi
   SERVICE_NAME: fastapi
-  GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
-  GCP_WIF_SERVICE_ACCOUNT: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+  GCP_WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+  GCP_WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
 jobs:
   # ==========================================
