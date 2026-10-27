@@ -301,3 +301,6 @@ semantic_models:
       - name: total_refunds_issued
         expr: refund_issued
         agg: sum
+      - name: refund_reason
+        expr: refund_reason
+        agg:  string
